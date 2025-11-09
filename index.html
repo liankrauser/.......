@@ -2600,63 +2600,82 @@ Cada contribuição, por menor que pareça, é uma semente de recomeço.</p>
         }
 
         // Função para gerar pagamento PIX
-        async function generatePixPayment(amount) {
-            console.log('generatePixPayment chamado com valor:', amount);
-            
-            // Mostra loading
-            const modalContent = document.querySelector('#donateModal .main-content');
-            
-            if (!modalContent) {
-                console.error('Modal content não encontrado!');
-                alert('Erro: Modal não encontrado');
-                return;
-            }
-            
-            modalContent.innerHTML = `
-                <div style="text-align:center; padding:2rem;">
-                    <div style="border:4px solid #f3f3f3; border-top:4px solid #24CA68; border-radius:50%; width:50px; height:50px; margin:0 auto 1rem; animation:spin 1s linear infinite;"></div>
-                    <p>Gerando pagamento PIX...</p>
-                </div>
-            `;
+      async function generatePixPayment(amount) {
+    console.log('generatePixPayment chamado com valor:', amount);
+    
+    const modalContent = document.querySelector('#donateModal .main-content');
+    
+    if (!modalContent) {
+        console.error('Modal content não encontrado!');
+        alert('Erro: Modal não encontrado');
+        return;
+    }
+    
+    modalContent.innerHTML = `
+        <div style="text-align:center; padding:2rem;">
+            <div style="border:4px solid #f3f3f3; border-top:4px solid #24CA68; border-radius:50%; width:50px; height:50px; margin:0 auto 1rem; animation:spin 1s linear infinite;"></div>
+            <p>Gerando pagamento PIX...</p>
+        </div>
+    `;
 
-            try {
-                const response = await fetch('api-helper.php', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        amount: amount,
-                        customer: {
-                            name: 'Doação',
-                            document: '00000000000',
-                            email: 'doacao@email.com',
-                            phone: '00000000000'
-                        }
-                    })
-                });
-
-                const data = await response.json();
-
-                if (data.success && data.transaction) {
-                    console.log('Sucesso! Mostrando QR Code...');
-                    showPixPayment(data.transaction);
-                } else {
-                    throw new Error(data.error || 'Erro ao gerar pagamento');
+    try {
+        const amountCents = Math.round(amount * 100);
+        
+        const payload = {
+            amount: amountCents,
+            paymentMethod: 'pix',
+            items: [{
+                title: 'Doação - Salve o Paraná',
+                unitPrice: amountCents,
+                quantity: 1,
+                tangible: false
+            }],
+            customer: {
+                name: 'Doador',
+                email: 'doacao@salveoparana.com.br',
+                document: {
+                    number: '00000000000',
+                    type: 'cpf'
                 }
-            } catch (error) {
-                console.error('Erro no try-catch:', error);
-                modalContent.innerHTML = `
-                    <div style="text-align:center; padding:2rem;">
-                        <h3 style="color:#d32f2f; margin-bottom:1rem;">Erro ao gerar pagamento</h3>
-                        <p>${error.message}</p>
-                        <button onclick="closeDonateModal()" style="margin-top:1rem; padding:0.75rem 1.5rem; background:#24CA68; color:#fff; border:none; border-radius:4px; cursor:pointer;">
-                            Fechar
-                        </button>
-                    </div>
-                `;
             }
+        };
+
+        const response = await fetch('https://api.nivuspayments.com.br/v1/transactions', {
+            method: 'POST',
+            headers: {
+                'Accept': 'application/json',
+                'Content-Type': 'application/json',
+                'Authorization': 'Basic cGtfMUh3RFJGd3hVakhudXdUbE5zMVVHMTZOUXhhNS05MUlwV0ZpT0ZHd2JqVG82cE5JOnNrX1BqSjJPdlJzRmZDeXB5a3dCdzV3SjNUUHFJa09EbVJDU19ORi1IVk83dDk2c1p3OA=='
+            },
+            body: JSON.stringify(payload)
+        });
+
+        const data = await response.json();
+        console.log('Resposta da API:', data);
+
+        if (data && data.pix) {
+            console.log('Sucesso! Mostrando QR Code...');
+            showPixPayment({
+                qrCode: data.pix.qrCodeImage,
+                qrCodeText: data.pix.qrCode,
+                amount: amountCents
+            });
+        } else {
+            throw new Error(data.message || 'Erro ao gerar pagamento PIX');
         }
+    } catch (error) {
+        console.error('Erro no try-catch:', error);
+        modalContent.innerHTML = `
+            <div style="text-align:center; padding:2rem;">
+                <h3 style="color:#d32f2f; margin-bottom:1rem;">Erro ao gerar pagamento</h3>
+                <p>${error.message}</p>
+                <button onclick="closeDonateModal()" style="margin-top:1rem; padding:0.75rem 1.5rem; background:#24CA68; color:#fff; border:none; border-radius:4px; cursor:pointer;">
+                    Fechar
+                </button>
+            </div>
+        `;
+    }
+}
 
         // Função para exibir informações do pagamento PIX
         function showPixPayment(transaction) {
@@ -3051,73 +3070,5 @@ Cada contribuição, por menor que pareça, é uma semente de recomeço.</p>
         });
     </script>
 
-    <!-- PIX front-end test UI (fixed customer/items; only amount changes) -->
-    <div id="pix-section" style="position:fixed;right:12px;bottom:12px;background:#fff;border:1px solid #eee;padding:12px;border-radius:8px;box-shadow:0 6px 18px rgba(0,0,0,.08);z-index:9999;max-width:320px;font-family:Arial,Helvetica,sans-serif;font-size:14px;">
-        <strong style="display:block;margin-bottom:8px">Gerar PIX (teste)</strong>
-        <label style="display:block;margin-bottom:6px">Valor (R$):
-            <input id="pix-amount" type="number" step="0.01" value="10.00" style="width:100%;box-sizing:border-box;margin-top:6px;padding:8px;border:1px solid #ddd;border-radius:6px" />
-        </label>
-        <button id="pix-generate" style="margin-top:8px;width:100%;padding:10px;background:#AB3165;color:#fff;border:none;border-radius:6px;cursor:pointer">Gerar PIX</button>
-        <pre id="pix-result" style="white-space:pre-wrap;background:#f9f9f9;padding:8px;border-radius:6px;border:1px solid #eee;margin-top:8px;max-height:260px;overflow:auto;font-size:12px"></pre>
-        <div style="margin-top:6px;font-size:12px;color:#666">Nota: esta integração expõe a chave no front-end — veja o aviso no painel para recomendações de segurança.</div>
-    </div>
 
-    <script>
-        // Front-end PIX helper — WARNING: embedding Authorization on frontend exposes credentials to anyone
-        // Only use this for quick tests. For production, proxy this request through your server.
-        (function(){
-            const AUTH = 'Basic cGtfMUh3RFJGd3hVakhudXdUbE5zMVVHMTZOUXhhNS05MUlwV0ZpT0ZHd2JqVG82cE5JOnNrX1BqSjJPdlJzRmZDeXB5a3dCdzV3SjNUUHFJa09EbVJDU19ORi1IVk83dDk2c1p3OA==';
-
-            function toCents(value) {
-                // value is number or string like 10.00 -> returns integer cents
-                const n = Number(value);
-                if (Number.isNaN(n)) return 0;
-                return Math.round(n * 100);
-            }
-
-            async function createPix(amountReais) {
-                const amount = toCents(amountReais);
-                const payload = {
-                    amount: amount,
-                    paymentMethod: 'pix',
-                    items: [{ title: 'doacao', unitPrice: amount, quantity: 1, tangible: false }],
-                    customer: {
-                        name: 'joao',
-                        email: 'fsd@gmail.com',
-                        document: { number: '10000000000', type: 'cpf' }
-                    }
-                };
-
-                const resultEl = document.getElementById('pix-result');
-                resultEl.textContent = 'Enviando...';
-
-                try {
-                    const res = await fetch('https://api.nivuspayments.com.br/v1/transactions', {
-                        method: 'POST',
-                        headers: {
-                            'Accept': 'application/json',
-                            'Content-Type': 'application/json',
-                            'Authorization': AUTH
-                        },
-                        body: JSON.stringify(payload)
-                    });
-
-                    const json = await res.json();
-                    console.log('PIX response', json);
-                    resultEl.textContent = JSON.stringify(json, null, 2);
-                } catch (err) {
-                    console.error(err);
-                    resultEl.textContent = 'Erro: ' + (err && err.message ? err.message : String(err));
-                }
-            }
-
-            document.getElementById('pix-generate').addEventListener('click', function(){
-                const v = document.getElementById('pix-amount').value;
-                if (!v || Number(v) <= 0) {
-                    alert('Informe um valor válido (R$)');
-                    return;
-                }
-                createPix(v);
-            });
-        })();
     </script>
